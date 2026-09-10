@@ -24,7 +24,7 @@ export async function PUT(request: NextRequest) {
     const session = await requireSession();
     const input = profileSchema.parse(await request.json());
     await db().unsafe(
-      "UPDATE profiles SET full_name = $1, institution = $2, current_role = $3, disciplines = $4::jsonb, specialisation = $5, purpose = $6, background = $7, links = $8::jsonb, onboarding_complete = TRUE, updated_at = NOW() WHERE user_id = $9",
+      "UPDATE profiles SET full_name = $1, institution = $2, current_position = $3, disciplines = $4::jsonb, specialisation = $5, purpose = $6, background = $7, links = $8::jsonb, onboarding_complete = TRUE, updated_at = NOW() WHERE user_id = $9",
       [
         input.fullName,
         input.institution,

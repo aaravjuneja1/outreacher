@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   full_name TEXT,
   institution TEXT,
-  current_role TEXT,
+  current_position TEXT,
   disciplines JSONB NOT NULL DEFAULT '[]'::jsonb,
   specialisation TEXT,
   purpose TEXT,

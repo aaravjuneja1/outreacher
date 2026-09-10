@@ -7,7 +7,7 @@ function arrayValue(value: unknown) {
 export async function dashboardFor(userId: string) {
   const sql = db();
   const [profileRows, documentRows, usageRows, connectionRows, draftRows, runRows, sendRows] = await Promise.all([
-    sql.unsafe("SELECT full_name, institution, current_role, disciplines, specialisation, purpose, background, links, live_sending, onboarding_complete FROM profiles WHERE user_id = $1", [userId]),
+    sql.unsafe("SELECT full_name, institution, current_position, disciplines, specialisation, purpose, background, links, live_sending, onboarding_complete FROM profiles WHERE user_id = $1", [userId]),
     sql.unsafe("SELECT id, original_name, mime_type, byte_size, use_for_context, created_at FROM documents WHERE user_id = $1 ORDER BY created_at DESC", [userId]),
     sql.unsafe("SELECT credits_used FROM credit_usage WHERE user_id = $1", [userId]),
     sql.unsafe("SELECT account_email, connected_at FROM gmail_connections WHERE user_id = $1", [userId]),
@@ -22,7 +22,7 @@ export async function dashboardFor(userId: string) {
   const profile = profileRows[0] || {
     full_name: "",
     institution: "",
-    current_role: "",
+    current_position: "",
     disciplines: [],
     specialisation: "",
     purpose: "",
@@ -36,7 +36,7 @@ export async function dashboardFor(userId: string) {
     profile: {
       fullName: profile.full_name || "",
       institution: profile.institution || "",
-      currentRole: profile.current_role || "",
+      currentRole: profile.current_position || "",
       disciplines: arrayValue(profile.disciplines),
       specialisation: profile.specialisation || "",
       purpose: profile.purpose || "",

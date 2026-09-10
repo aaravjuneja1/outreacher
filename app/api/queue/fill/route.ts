@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
 
     const [profileRows, documentRows] = await Promise.all([
       sql.unsafe(
-        "SELECT full_name, institution, current_role, disciplines, specialisation, purpose, background, links FROM profiles WHERE user_id = $1",
+        "SELECT full_name, institution, current_position, disciplines, specialisation, purpose, background, links FROM profiles WHERE user_id = $1",
         [session.userId]
       ),
       sql.unsafe(
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
       profile: {
         fullName: profile.full_name,
         institution: profile.institution || "",
-        currentRole: profile.current_role || "",
+        currentRole: profile.current_position || "",
         disciplines: Array.isArray(profile.disciplines) ? profile.disciplines : [],
         specialisation: profile.specialisation || "",
         purpose: profile.purpose || "",

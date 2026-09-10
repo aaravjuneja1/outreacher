@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
     userId = session.userId;
     const sql = db();
     const profiles = await sql.unsafe(
-      "SELECT full_name, institution, current_role, disciplines, specialisation, purpose, background, onboarding_complete FROM profiles WHERE user_id = $1",
+      "SELECT full_name, institution, current_position, disciplines, specialisation, purpose, background, onboarding_complete FROM profiles WHERE user_id = $1",
       [session.userId]
     );
     const profile = profiles[0];
