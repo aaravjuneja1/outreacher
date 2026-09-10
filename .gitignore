@@ -1,0 +1,27 @@
+node_modules/
+.next/
+out/
+.vercel/
+coverage/
+*.tsbuildinfo
+
+# Local and production secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+*.pem
+*.key
+
+# Legacy local application data
+venv/
+__pycache__/
+*.pyc
+data/
+uploads/
+
+# OS and editor files
+.DS_Store
+.idea/
+.vscode/
+.claude/

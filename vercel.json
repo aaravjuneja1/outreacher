@@ -1,0 +1,13 @@
+{
+  "functions": {
+    "app/api/research/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/queue/fill/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/drafts/[id]/send/route.ts": {
+      "maxDuration": 60
+    }
+  }
+}

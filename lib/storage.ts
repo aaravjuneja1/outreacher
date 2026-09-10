@@ -1,0 +1,74 @@
+import { AppError, safeName } from "@/lib/core";
+import { requiredEnv } from "@/lib/env";
+
+function storageConfig() {
+  const url = requiredEnv("FILE_STORAGE_URL").replace(/\/$/, "");
+  return {
+    url,
+    key: requiredEnv("FILE_STORAGE_SERVICE_KEY"),
+    bucket: requiredEnv("FILE_STORAGE_BUCKET")
+  };
+}
+
+function objectUrl(path: string) {
+  const config = storageConfig();
+  return config.url + "/storage/v1/object/" + encodeURIComponent(config.bucket) + "/" + path.split("/").map(encodeURIComponent).join("/");
+}
+
+function headers(contentType?: string) {
+  const config = storageConfig();
+  return {
+    apikey: config.key,
+    Authorization: "Bearer " + config.key,
+    ...(contentType ? { "Content-Type": contentType } : {})
+  };
+}
+
+export async function uploadPrivateFile(userId: string, documentId: string, originalName: string, bytes: Buffer, mimeType: string) {
+  const path = safeName(userId) + "/" + safeName(documentId) + "-" + safeName(originalName);
+  const response = await fetch(objectUrl(path), {
+    method: "POST",
+    headers: {
+      ...headers(mimeType),
+      "x-upsert": "false"
+    },
+    body: new Uint8Array(bytes)
+  });
+  if (!response.ok) {
+    throw new AppError("Your file could not be stored privately. Please try again.", 503);
+  }
+  return path;
+}
+
+export function privateStoragePath(userId: string, documentId: string, originalName: string) {
+  return safeName(userId) + "/" + safeName(documentId) + "-" + safeName(originalName);
+}
+
+export async function createPrivateUploadUrl(path: string) {
+  const config = storageConfig();
+  const endpoint = config.url + "/storage/v1/object/upload/sign/" + encodeURIComponent(config.bucket) + "/" + path.split("/").map(encodeURIComponent).join("/");
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: headers("application/json"),
+    body: "{}"
+  });
+  if (!response.ok) {
+    throw new AppError("Your private upload link could not be created. Please try again.", 503);
+  }
+  const data = await response.json() as { url?: string };
+  if (!data.url) throw new AppError("Your private upload link could not be created. Please try again.", 503);
+  return data.url.startsWith("http") ? data.url : config.url + "/storage/v1" + data.url;
+}
+
+export async function downloadPrivateFile(path: string) {
+  const response = await fetch(objectUrl(path), { headers: headers() });
+  if (!response.ok) throw new AppError("An attached file is no longer available.", 422);
+  return Buffer.from(await response.arrayBuffer());
+}
+
+export async function removePrivateFile(path: string) {
+  const response = await fetch(objectUrl(path), { method: "DELETE", headers: headers() });
+  if (!response.ok && response.status !== 404) {
+    throw new AppError("The file could not be deleted right now. Please try again.", 503);
+  }
+}
