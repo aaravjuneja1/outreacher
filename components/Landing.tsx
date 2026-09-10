@@ -19,6 +19,7 @@ export function Landing() {
         <Link href="/" className="wordmark">Outreacher</Link>
         <div className="nav-actions">
           <Link href="/privacy">Privacy</Link>
+          <Link href="/terms">Terms</Link>
           <Link className="button button-quiet" href="/sign-in">Sign in</Link>
         </div>
       </nav>
