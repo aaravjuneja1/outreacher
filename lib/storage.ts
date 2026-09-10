@@ -19,7 +19,7 @@ function headers(contentType?: string) {
   const config = storageConfig();
   return {
     apikey: config.key,
-    Authorization: "Bearer " + config.key,
+    ...(config.key.startsWith("sb_secret_") ? {} : { Authorization: "Bearer " + config.key }),
     ...(contentType ? { "Content-Type": contentType } : {})
   };
 }
