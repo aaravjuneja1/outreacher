@@ -32,22 +32,36 @@ export function hashForLog(value: string) {
 
 export function errorResponse(error: unknown) {
   if (error instanceof AppError) {
-    return NextResponse.json({ error: error.message }, { status: error.status });
+    return noStore(NextResponse.json({ error: error.message }, { status: error.status }));
   }
 
   console.error("Unhandled request error", error instanceof Error ? error.message : "Unknown error");
-  return NextResponse.json(
+  return noStore(NextResponse.json(
     { error: "Something went wrong. Please try again shortly." },
     { status: 500 }
-  );
+  ));
 }
 
 export function assertSameOrigin(request: NextRequest) {
-  const origin = request.headers.get("origin");
   const appUrl = process.env.APP_URL;
-
-  if (origin && appUrl && origin !== appUrl) {
+  if (!appUrl) throw new AppError("The app is not configured yet.", 503);
+  let expectedOrigin: string;
+  try {
+    expectedOrigin = new URL(appUrl).origin;
+  } catch {
+    throw new AppError("The app is not configured yet.", 503);
+  }
+  const origin = request.headers.get("origin");
+  if (!origin || origin !== expectedOrigin) {
     throw new AppError("This request did not come from the app.", 403);
+  }
+}
+
+export function isHttpsUrl(value: string) {
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
   }
 }
 

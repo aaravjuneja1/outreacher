@@ -46,7 +46,7 @@ export function AuthForm({ mode }: { mode: "sign-up" | "sign-in" }) {
       </label>
       <label>
         Password
-        <input type="password" autoComplete={signUp ? "new-password" : "current-password"} minLength={signUp ? 10 : 1} value={password} onChange={(event) => setPassword(event.target.value)} required />
+        <input type="password" autoComplete={signUp ? "new-password" : "current-password"} minLength={signUp ? 12 : 1} maxLength={72} value={password} onChange={(event) => setPassword(event.target.value)} required />
       </label>
       {signUp && (
         <label className="check-row">

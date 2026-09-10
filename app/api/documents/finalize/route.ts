@@ -4,6 +4,7 @@ import { requireSession } from "@/lib/auth";
 import { AppError, assertSameOrigin, errorResponse, noStore } from "@/lib/core";
 import { db } from "@/lib/db";
 import { readDocumentBytes } from "@/lib/documents";
+import { enforceRateLimit } from "@/lib/rate-limit";
 import { downloadPrivateFile, removePrivateFile } from "@/lib/storage";
 
 export const runtime = "nodejs";
@@ -24,10 +25,11 @@ export async function POST(request: NextRequest) {
   try {
     assertSameOrigin(request);
     const session = await requireSession();
+    await enforceRateLimit("document-finalize", session.userId, { limit: 12, windowSeconds: 60 * 60 });
     const input = schema.parse(await request.json());
     const sql = db();
     const rows = await sql.unsafe(
-      "SELECT id, original_name, mime_type, byte_size, storage_path, use_for_context FROM document_uploads WHERE id = $1 AND user_id = $2 AND expires_at > NOW()",
+      "DELETE FROM document_uploads WHERE id = $1 AND user_id = $2 AND expires_at > NOW() RETURNING id, original_name, mime_type, byte_size, storage_path, use_for_context",
       [input.documentId, session.userId]
     );
     const pending = rows[0] as unknown as PendingUpload | undefined;
@@ -45,6 +47,15 @@ export async function POST(request: NextRequest) {
     }
 
     await sql.begin(async (transaction) => {
+      const user = await transaction.unsafe("SELECT id FROM users WHERE id = $1 AND deleted_at IS NULL FOR UPDATE", [session.userId]);
+      if (!user.length) throw new AppError("Please sign in again.", 401);
+      const totals = await transaction.unsafe(
+        "SELECT COUNT(*)::int AS count, COALESCE(SUM(byte_size), 0)::bigint AS total FROM documents WHERE user_id = $1",
+        [session.userId]
+      );
+      if (Number(totals[0]?.count || 0) >= 10 || Number(totals[0]?.total || 0) + bytes.length > 50 * 1024 * 1024) {
+        throw new AppError("You can store up to 10 files and 50 MB in total. Delete a file before adding another.", 422);
+      }
       await transaction.unsafe(
         "INSERT INTO documents (id, user_id, original_name, mime_type, byte_size, storage_path, extracted_text, use_for_context) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
         [
@@ -58,7 +69,6 @@ export async function POST(request: NextRequest) {
           pending.use_for_context
         ]
       );
-      await transaction.unsafe("DELETE FROM document_uploads WHERE id = $1 AND user_id = $2", [input.documentId, session.userId]);
     });
 
     return noStore(NextResponse.json({ id: input.documentId, ok: true }, { status: 201 }));

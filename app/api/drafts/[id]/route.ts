@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireSession } from "@/lib/auth";
-import { AppError, assertSameOrigin, errorResponse, noStore } from "@/lib/core";
+import { AppError, assertSameOrigin, errorResponse, isHttpsUrl, noStore } from "@/lib/core";
 import { db } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -11,7 +11,7 @@ const editSchema = z.object({
   body: z.string().trim().min(20).max(6000).optional(),
   attachmentDocumentIds: z.array(z.string().uuid()).max(10).optional(),
   recipientEmail: z.union([z.string().trim().email().max(254), z.literal("")]).optional(),
-  emailSourceUrl: z.union([z.string().trim().url().max(1000), z.literal("")]).optional()
+  emailSourceUrl: z.union([z.string().trim().url().max(1000).refine(isHttpsUrl, "Use a secure https source link."), z.literal("")]).optional()
 }).refine((input) => Object.keys(input).length > 0, "Add an edit first.");
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {

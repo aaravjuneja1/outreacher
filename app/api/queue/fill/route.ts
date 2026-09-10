@@ -3,6 +3,7 @@ import { requireSession } from "@/lib/auth";
 import { AppError, assertSameOrigin, errorResponse, newId, noStore } from "@/lib/core";
 import { db } from "@/lib/db";
 import { createCheckedDraft } from "@/lib/gemini";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -27,22 +28,36 @@ export async function POST(request: NextRequest) {
     assertSameOrigin(request);
     const session = await requireSession();
     const sql = db();
+    await enforceRateLimit("draft-generation", session.userId, { limit: 12, windowSeconds: 60 * 60, message: "Drafting is taking a short pause. Please try again later." });
     const usage = await sql.unsafe("SELECT credits_used FROM credit_usage WHERE user_id = $1", [session.userId]);
     if (Number(usage[0]?.credits_used || 0) >= 10) {
       return noStore(NextResponse.json({ generated: false, exhausted: true }));
     }
 
-    claimed = await sql.begin(async (transaction) => {
+    const claim = await sql.begin(async (transaction) => {
+      const lock = await transaction.unsafe("SELECT pg_try_advisory_xact_lock(hashtext($1)) AS locked", ["draft:" + session.userId]);
+      if (!lock[0]?.locked) return { busy: true };
+      await transaction.unsafe(
+        "UPDATE draft_jobs SET status = 'queued', updated_at = NOW() WHERE user_id = $1 AND status = 'running' AND updated_at < NOW() - INTERVAL '5 minutes'",
+        [session.userId]
+      );
+      await transaction.unsafe(
+        "UPDATE prospects SET status = 'queued' WHERE user_id = $1 AND status = 'generating' AND id IN (SELECT prospect_id FROM draft_jobs WHERE user_id = $1 AND status = 'queued')",
+        [session.userId]
+      );
       const jobs = await transaction.unsafe(
-        "SELECT draft_jobs.id AS job_id, prospects.id AS prospect_id, prospects.full_name, prospects.institution, prospects.research_summary, prospects.why_match, prospects.works FROM draft_jobs JOIN prospects ON prospects.id = draft_jobs.prospect_id WHERE draft_jobs.user_id = $1 AND draft_jobs.status = 'queued' AND prospects.status = 'queued' ORDER BY draft_jobs.created_at ASC FOR UPDATE SKIP LOCKED LIMIT 1",
+        "SELECT draft_jobs.id AS job_id, prospects.id AS prospect_id, prospects.full_name, prospects.institution, prospects.research_summary, prospects.why_match, prospects.works FROM draft_jobs JOIN prospects ON prospects.id = draft_jobs.prospect_id WHERE draft_jobs.user_id = $1 AND draft_jobs.status = 'queued' AND prospects.status = 'queued' AND NOT EXISTS (SELECT 1 FROM draft_jobs active_jobs WHERE active_jobs.user_id = $1 AND active_jobs.status = 'running') ORDER BY draft_jobs.created_at ASC FOR UPDATE SKIP LOCKED LIMIT 1",
         [session.userId]
       );
       const job = jobs[0];
-      if (!job) return undefined;
+      if (!job) return { job: undefined };
       await transaction.unsafe("UPDATE draft_jobs SET status = 'running', updated_at = NOW() WHERE id = $1", [job.job_id]);
       await transaction.unsafe("UPDATE prospects SET status = 'generating' WHERE id = $1 AND user_id = $2", [job.prospect_id, session.userId]);
-      return job;
+      return { job };
     });
+
+    if (claim.busy) return noStore(NextResponse.json({ generated: false, busy: true }));
+    claimed = claim.job;
 
     if (!claimed) {
       return noStore(NextResponse.json({ generated: false, empty: true }));

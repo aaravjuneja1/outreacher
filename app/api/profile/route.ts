@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireSession } from "@/lib/auth";
 import { ALL_DISCIPLINES } from "@/lib/disciplines";
-import { assertSameOrigin, errorResponse, noStore } from "@/lib/core";
+import { assertSameOrigin, errorResponse, isHttpsUrl, noStore } from "@/lib/core";
 import { db } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -15,7 +15,7 @@ const profileSchema = z.object({
   specialisation: z.string().trim().min(2).max(300),
   purpose: z.string().trim().min(30).max(2500),
   background: z.string().trim().min(20).max(5000),
-  links: z.array(z.string().url().max(500)).max(5).default([])
+  links: z.array(z.string().url().max(500).refine(isHttpsUrl, "Links must use https.")).max(5).default([])
 });
 
 export async function PUT(request: NextRequest) {

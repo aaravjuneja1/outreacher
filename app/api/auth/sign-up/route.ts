@@ -3,12 +3,13 @@ import { z } from "zod";
 import { createSession, passwordHash, sessionCookie } from "@/lib/auth";
 import { AppError, assertSameOrigin, errorResponse, newId, noStore } from "@/lib/core";
 import { db } from "@/lib/db";
+import { enforceRateLimit, requestFingerprint } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
 const signUpSchema = z.object({
   email: z.string().trim().email().max(254),
-  password: z.string().min(10).max(128),
+  password: z.string().min(12).max(72).refine((value) => Buffer.byteLength(value, "utf8") <= 72, "Password is too long."),
   acceptPrivacy: z.literal(true)
 });
 
@@ -17,13 +18,14 @@ export async function POST(request: NextRequest) {
     assertSameOrigin(request);
     const input = signUpSchema.parse(await request.json());
     const email = input.email.toLowerCase();
+    await enforceRateLimit("sign-up-ip", requestFingerprint(request), { limit: 3, windowSeconds: 60 * 60, message: "Too many account attempts from this connection. Please try again later." });
     const userId = newId();
     const hash = await passwordHash(input.password);
     const sql = db();
 
     await sql.begin(async (transaction) => {
       const existing = await transaction.unsafe("SELECT id FROM users WHERE email = $1 LIMIT 1", [email]);
-      if (existing.length) throw new AppError("An account with this email already exists. Sign in instead.", 409);
+      if (existing.length) throw new AppError("That email is unavailable. Sign in if you already have an account.", 409);
 
       const seat = await transaction.unsafe(
         "UPDATE launch_state SET seats_taken = seats_taken + 1, updated_at = NOW() WHERE id = 1 AND seats_taken < 20 RETURNING seats_taken"

@@ -1,6 +1,8 @@
 import { AppError, safeName } from "@/lib/core";
 import { requiredEnv } from "@/lib/env";
 
+const MAX_PRIVATE_FILE_BYTES = 10 * 1024 * 1024;
+
 function storageConfig() {
   const url = requiredEnv("FILE_STORAGE_URL").replace(/\/$/, "");
   return {
@@ -60,10 +62,14 @@ export async function createPrivateUploadUrl(path: string) {
   return data.url.startsWith("http") ? data.url : config.url + "/storage/v1" + data.url;
 }
 
-export async function downloadPrivateFile(path: string) {
+export async function downloadPrivateFile(path: string, maxBytes = MAX_PRIVATE_FILE_BYTES) {
   const response = await fetch(objectUrl(path), { headers: headers() });
   if (!response.ok) throw new AppError("An attached file is no longer available.", 422);
-  return Buffer.from(await response.arrayBuffer());
+  const declaredLength = Number(response.headers.get("content-length") || 0);
+  if (declaredLength > maxBytes) throw new AppError("This file is larger than the allowed limit.", 422);
+  const bytes = Buffer.from(await response.arrayBuffer());
+  if (bytes.length > maxBytes) throw new AppError("This file is larger than the allowed limit.", 422);
+  return bytes;
 }
 
 export async function removePrivateFile(path: string) {

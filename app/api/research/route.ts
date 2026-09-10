@@ -3,6 +3,7 @@ import { requireSession } from "@/lib/auth";
 import { AppError, assertSameOrigin, errorResponse, newId, noStore } from "@/lib/core";
 import { db } from "@/lib/db";
 import { findResearchers } from "@/lib/openalex";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -15,6 +16,7 @@ export async function POST(request: NextRequest) {
     const session = await requireSession();
     userId = session.userId;
     const sql = db();
+    await enforceRateLimit("research", session.userId, { limit: 4, windowSeconds: 60 * 60, message: "You have reached the hourly research limit. Please try again later." });
     const profiles = await sql.unsafe(
       "SELECT full_name, institution, current_position, disciplines, specialisation, purpose, background, onboarding_complete FROM profiles WHERE user_id = $1",
       [session.userId]
@@ -24,10 +26,20 @@ export async function POST(request: NextRequest) {
       throw new AppError("Complete your outreach profile before finding professors.", 422);
     }
 
-    await sql.unsafe(
-      "INSERT INTO research_runs (id, user_id, status, stage) VALUES ($1, $2, 'running', 'Finding relevant professors')",
-      [runId, session.userId]
-    );
+    await sql.begin(async (transaction) => {
+      const lock = await transaction.unsafe("SELECT pg_try_advisory_xact_lock(hashtext($1)) AS locked", ["research:" + session.userId]);
+      if (!lock[0]?.locked) throw new AppError("A professor search is already starting. Please wait for it to finish.", 409);
+      await transaction.unsafe(
+        "UPDATE research_runs SET status = 'failed', stage = 'Professor matching paused', error_message = 'This run took too long to finish.', completed_at = NOW() WHERE user_id = $1 AND status = 'running' AND created_at < NOW() - INTERVAL '5 minutes'",
+        [session.userId]
+      );
+      const active = await transaction.unsafe("SELECT id FROM research_runs WHERE user_id = $1 AND status = 'running' LIMIT 1", [session.userId]);
+      if (active.length) throw new AppError("A professor search is already running. Please wait for it to finish.", 409);
+      await transaction.unsafe(
+        "INSERT INTO research_runs (id, user_id, status, stage) VALUES ($1, $2, 'running', 'Finding relevant professors')",
+        [runId, session.userId]
+      );
+    });
 
     const result = await findResearchers({
       disciplines: Array.isArray(profile.disciplines) ? profile.disciplines : [],

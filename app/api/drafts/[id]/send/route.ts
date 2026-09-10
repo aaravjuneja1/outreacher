@@ -3,8 +3,9 @@ import { requireSession } from "@/lib/auth";
 import { AppError, assertSameOrigin, errorResponse, newId, noStore } from "@/lib/core";
 import { db } from "@/lib/db";
 import { decryptToken } from "@/lib/token-crypto";
+import { GmailDeliveryUncertainError, sendWithGmail } from "@/lib/gmail";
+import { enforceRateLimit } from "@/lib/rate-limit";
 import { downloadPrivateFile } from "@/lib/storage";
-import { sendWithGmail } from "@/lib/gmail";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -13,10 +14,12 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   let prospectId: string | undefined;
   let draftId: string | undefined;
   let userId: string | undefined;
+  let deliveryConfirmed = false;
   try {
     assertSameOrigin(request);
     const session = await requireSession();
     userId = session.userId;
+    await enforceRateLimit("gmail-send", session.userId, { limit: 10, windowSeconds: 60 * 60, message: "You have reached the hourly send limit. Please wait before sending another email." });
     const { id } = await context.params;
     draftId = id;
     const sql = db();
@@ -74,6 +77,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       body: draft.body,
       attachments
     });
+    deliveryConfirmed = true;
 
     await sql.begin(async (transaction) => {
       await transaction.unsafe("UPDATE drafts SET status = 'sent', sent_at = NOW(), updated_at = NOW() WHERE id = $1 AND user_id = $2", [id, session.userId]);
@@ -87,7 +91,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
 
     return noStore(NextResponse.json({ ok: true }));
   } catch (error) {
-    if (draftId && userId) {
+    if (draftId && userId && !deliveryConfirmed && !(error instanceof GmailDeliveryUncertainError)) {
       try {
         await db().unsafe("UPDATE drafts SET status = 'drafted', updated_at = NOW() WHERE id = $1 AND user_id = $2 AND status = 'sending'", [draftId, userId]);
       } catch {

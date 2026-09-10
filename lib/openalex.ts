@@ -1,4 +1,4 @@
-import { AppError, shortText } from "@/lib/core";
+import { AppError, isHttpsUrl, shortText } from "@/lib/core";
 
 type OpenAlexWork = {
   id?: string;
@@ -60,7 +60,8 @@ function words(value: string) {
 }
 
 function workUrl(work: OpenAlexWork) {
-  return work.doi || work.id || "";
+  const value = work.doi || work.id || "";
+  return isHttpsUrl(value) ? value : "";
 }
 
 function toWork(work: OpenAlexWork): ResearchWork | undefined {
@@ -95,7 +96,7 @@ async function recentAuthorWorks(authorId: string) {
 async function institutionHomepage(institutionId: string) {
   try {
     const data = await openAlex(institutionId) as OpenAlexInstitution;
-    return data.homepage_url || undefined;
+    return data.homepage_url && isHttpsUrl(data.homepage_url) ? data.homepage_url : undefined;
   } catch {
     return undefined;
   }
@@ -179,7 +180,8 @@ export async function findResearchers(input: {
 
       if (allWorks.length < 3) return undefined;
 
-      const authorUrl = seed.authorId;
+      const authorUrl = isHttpsUrl(seed.authorId) ? seed.authorId : undefined;
+      if (!authorUrl) return undefined;
       const sourceUrls = Array.from(new Set([authorUrl, officialProfileUrl, ...allWorks.map((work) => work.url)].filter(Boolean))) as string[];
       return {
         fullName: seed.fullName,

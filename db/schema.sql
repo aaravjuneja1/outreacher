@@ -148,3 +148,30 @@ CREATE TABLE IF NOT EXISTS security_events (
   event_type TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS rate_limit_buckets (
+  scope TEXT NOT NULL,
+  key_hash TEXT NOT NULL,
+  hits INTEGER NOT NULL CHECK (hits >= 0),
+  resets_at TIMESTAMPTZ NOT NULL,
+  PRIMARY KEY (scope, key_hash)
+);
+
+CREATE INDEX IF NOT EXISTS rate_limit_buckets_resets_at_index ON rate_limit_buckets (resets_at);
+
+-- The browser never receives a Supabase data key. These tables are server-only;
+-- RLS with no client policies prevents accidental access through the Data API.
+ALTER TABLE launch_state ENABLE ROW LEVEL SECURITY;
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE credit_usage ENABLE ROW LEVEL SECURITY;
+ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE document_uploads ENABLE ROW LEVEL SECURITY;
+ALTER TABLE research_runs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE prospects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE drafts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE draft_jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE gmail_connections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE send_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE security_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE rate_limit_buckets ENABLE ROW LEVEL SECURITY;

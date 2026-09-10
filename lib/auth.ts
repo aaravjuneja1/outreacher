@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
 import { AppError } from "@/lib/core";
+import { db } from "@/lib/db";
 import { requiredEnv } from "@/lib/env";
 
 export type Session = {
@@ -74,7 +75,10 @@ function readSession(token?: string): Session | undefined {
 }
 
 export async function currentSession() {
-  return readSession((await cookies()).get(COOKIE_NAME)?.value);
+  const session = readSession((await cookies()).get(COOKIE_NAME)?.value);
+  if (!session) return undefined;
+  const users = await db().unsafe("SELECT id FROM users WHERE id = $1 AND email = $2 AND deleted_at IS NULL", [session.userId, session.email]);
+  return users.length ? session : undefined;
 }
 
 export async function requireSession() {

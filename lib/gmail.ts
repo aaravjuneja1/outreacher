@@ -2,6 +2,8 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { AppError } from "@/lib/core";
 import { requiredEnv } from "@/lib/env";
 
+export class GmailDeliveryUncertainError extends AppError {}
+
 type Attachment = {
   name: string;
   mimeType: string;
@@ -170,21 +172,29 @@ export async function sendWithGmail(input: {
 }) {
   const accessToken = await googleAccessToken(input.refreshToken);
   const raw = Buffer.from(buildRawEmail(input), "utf8").toString("base64url");
-  const response = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
-    method: "POST",
-    headers: {
-      Authorization: "Bearer " + accessToken,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ raw })
-  });
+  let response: Response;
+  try {
+    response = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer " + accessToken,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ raw })
+    });
+  } catch {
+    throw new GmailDeliveryUncertainError("Gmail did not confirm whether this email was sent. It has been held to prevent a duplicate email.", 503);
+  }
 
   if (!response.ok) {
     if (response.status === 401 || response.status === 403) {
       throw new AppError("Gmail did not allow this send. Reconnect Gmail and try again.", 401);
     }
+    if (response.status >= 500) {
+      throw new GmailDeliveryUncertainError("Gmail did not confirm whether this email was sent. It has been held to prevent a duplicate email.", 503);
+    }
     throw new AppError("Gmail could not send this email. Nothing was marked as sent.", 502);
   }
-  const data = await response.json() as { id?: string };
+  const data = await response.json().catch(() => ({})) as { id?: string };
   return data.id || undefined;
 }

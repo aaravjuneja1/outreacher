@@ -11,12 +11,15 @@ export async function DELETE(request: NextRequest) {
     assertSameOrigin(request);
     const session = await requireSession();
     const sql = db();
-    const documents = await sql.unsafe("SELECT storage_path FROM documents WHERE user_id = $1", [session.userId]);
+    const documents = await sql.unsafe(
+      "SELECT storage_path FROM documents WHERE user_id = $1 UNION SELECT storage_path FROM document_uploads WHERE user_id = $1",
+      [session.userId]
+    );
     for (const document of documents) {
       try {
         await removePrivateFile(document.storage_path);
       } catch {
-        // The database deletion below revokes access even if storage is temporarily unavailable.
+        // The database deletion below revokes app access even if storage is temporarily unavailable.
       }
     }
     await sql.unsafe("DELETE FROM users WHERE id = $1", [session.userId]);

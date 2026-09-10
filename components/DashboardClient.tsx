@@ -227,7 +227,7 @@ function DocumentPanel({ documents, onRefresh, showMessage }: {
       });
       const storageResponse = await fetch(upload.signedUrl, {
         method: "PUT",
-        headers: { "Content-Type": file.type || "application/octet-stream" },
+        headers: { "Content-Type": upload.mimeType },
         body: file
       });
       if (!storageResponse.ok) throw new Error("Your private upload did not finish. Please try again.");
@@ -524,6 +524,15 @@ function GmailPanel({ data, onRefresh, showMessage }: {
   onRefresh: () => Promise<void>;
   showMessage: (message: string) => void;
 }) {
+  async function connect() {
+    try {
+      const result = await api("/api/gmail/connect", { method: "POST" });
+      window.location.assign(result.url);
+    } catch (error) {
+      showMessage(error instanceof Error ? error.message : "Gmail could not start connecting.");
+    }
+  }
+
   async function setLiveSending() {
     if (!window.confirm("Right swipe sends an email immediately. Turn on Live sending?")) return;
     try {
@@ -561,7 +570,7 @@ function GmailPanel({ data, onRefresh, showMessage }: {
       {!data.gmail.connected ? (
         <>
           <p className="muted">Google will ask only for permission to send emails on your behalf. It cannot read your inbox and never receives your password.</p>
-          <a className="button button-quiet" href="/api/gmail/connect">Connect Gmail</a>
+          <button className="button button-quiet" type="button" onClick={() => void connect()}>Connect Gmail</button>
         </>
       ) : data.profile.liveSending ? (
         <>

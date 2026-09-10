@@ -1,14 +1,17 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth";
-import { errorResponse } from "@/lib/core";
+import { assertSameOrigin, errorResponse, noStore } from "@/lib/core";
 import { googleConnectUrl } from "@/lib/gmail";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function POST(request: NextRequest) {
   try {
+    assertSameOrigin(request);
     const session = await requireSession();
-    return NextResponse.redirect(googleConnectUrl(session.userId));
+    await enforceRateLimit("gmail-connect", session.userId, { limit: 5, windowSeconds: 60 * 60 });
+    return noStore(NextResponse.json({ url: googleConnectUrl(session.userId) }));
   } catch (error) {
     return errorResponse(error);
   }
