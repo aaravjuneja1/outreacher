@@ -14,16 +14,21 @@ function dashboardRedirect(status: string) {
 }
 
 export async function GET(request: NextRequest) {
+  let failureStatus = "not-connected";
   try {
     const code = request.nextUrl.searchParams.get("code");
     const state = request.nextUrl.searchParams.get("state");
     const providerError = request.nextUrl.searchParams.get("error");
-    if (providerError || !code || !state) return dashboardRedirect("not-connected");
+    if (providerError || !code || !state) return dashboardRedirect("denied");
 
+    failureStatus = "invalid-link";
     const userId = readGoogleState(state);
+    failureStatus = "signed-out";
     const session = await requireSession();
     if (session.userId !== userId) throw new AppError("Your Gmail connection link is invalid. Try connecting again.", 400);
+    failureStatus = "google-error";
     const refreshToken = await exchangeGoogleCode(code);
+    failureStatus = "save-error";
     await db().unsafe(
       "INSERT INTO gmail_connections (user_id, encrypted_refresh_token, connected_at, updated_at) VALUES ($1, $2, NOW(), NOW()) ON CONFLICT (user_id) DO UPDATE SET encrypted_refresh_token = EXCLUDED.encrypted_refresh_token, updated_at = NOW()",
       [userId, encryptToken(refreshToken)]
@@ -32,6 +37,6 @@ export async function GET(request: NextRequest) {
     return dashboardRedirect("connected");
   } catch (error) {
     console.error("Gmail callback failed", error instanceof Error ? error.message : "Unknown error");
-    return dashboardRedirect("not-connected");
+    return dashboardRedirect(failureStatus);
   }
 }

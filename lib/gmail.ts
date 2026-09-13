@@ -76,6 +76,14 @@ export async function exchangeGoogleCode(code: string) {
     body
   });
   if (!response.ok) {
+    let providerError = "";
+    try {
+      const data = await response.clone().json() as { error?: string };
+      providerError = data.error || "";
+    } catch {
+      // The HTTP status is sufficient when Google does not return JSON.
+    }
+    console.error("Google OAuth token exchange failed", response.status, providerError.slice(0, 120));
     throw new AppError("Google could not finish the Gmail connection. Please try again.", 502);
   }
   const data = await response.json() as { refresh_token?: string };

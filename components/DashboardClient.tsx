@@ -613,7 +613,12 @@ export function DashboardClient() {
     void refresh();
     const params = new URLSearchParams(window.location.search);
     if (params.get("gmail") === "connected") setMessage("Gmail is connected. Turn on Live sending once when you are ready.");
-    if (params.get("gmail") === "not-connected") setMessage("Gmail was not connected. You can try again whenever you are ready.");
+    if (params.get("gmail") === "denied") setMessage("Google did not grant Gmail send access. Try Connect Gmail again when you are ready.");
+    if (params.get("gmail") === "invalid-link") setMessage("The Gmail connection link expired or was invalid. Start again with Connect Gmail.");
+    if (params.get("gmail") === "signed-out") setMessage("Your app session expired during Gmail setup. Sign in to Outreacher, then connect Gmail again.");
+    if (params.get("gmail") === "google-error") setMessage("Google could not exchange the Gmail authorization. Check the OAuth client settings and try again.");
+    if (params.get("gmail") === "save-error") setMessage("Google authorized Gmail, but Outreacher could not save the connection. Try again once.");
+    if (params.get("gmail") === "not-connected") setMessage("Gmail was not connected. Start again with Connect Gmail.");
   }, [refresh]);
 
   const fillQueue = useCallback(async () => {
