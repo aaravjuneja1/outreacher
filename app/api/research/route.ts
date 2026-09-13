@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth";
-import { AppError, assertSameOrigin, errorResponse, newId, noStore } from "@/lib/core";
+import { AppError, assertSameOrigin, errorResponse, jsonArray, newId, noStore } from "@/lib/core";
 import { db } from "@/lib/db";
 import { findResearchers } from "@/lib/openalex";
 import { enforceRateLimit } from "@/lib/rate-limit";
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     });
 
     const result = await findResearchers({
-      disciplines: Array.isArray(profile.disciplines) ? profile.disciplines : [],
+      disciplines: jsonArray<string>(profile.disciplines),
       specialisation: profile.specialisation || "",
       purpose: profile.purpose || ""
     });

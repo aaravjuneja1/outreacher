@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth";
-import { AppError, assertSameOrigin, errorResponse, newId, noStore } from "@/lib/core";
+import { AppError, assertSameOrigin, errorResponse, jsonArray, newId, noStore } from "@/lib/core";
 import { db } from "@/lib/db";
 import { decryptToken } from "@/lib/token-crypto";
 import { GmailDeliveryUncertainError, sendWithGmail } from "@/lib/gmail";
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       throw new AppError("Add a public email from an official source before sending.", 422);
     }
 
-    const attachmentIds = Array.isArray(draft.attachment_document_ids) ? draft.attachment_document_ids : [];
+    const attachmentIds = jsonArray<string>(draft.attachment_document_ids);
     const documentRows: Array<{ original_name: string; mime_type: string; byte_size: number; storage_path: string }> = [];
     for (const documentId of attachmentIds) {
       const rows = await sql.unsafe(

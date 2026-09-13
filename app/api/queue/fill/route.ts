@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth";
-import { AppError, assertSameOrigin, errorResponse, newId, noStore } from "@/lib/core";
+import { AppError, assertSameOrigin, errorResponse, jsonArray, newId, noStore } from "@/lib/core";
 import { db } from "@/lib/db";
 import { createCheckedDraft } from "@/lib/gemini";
 import { enforceRateLimit } from "@/lib/rate-limit";
@@ -83,18 +83,18 @@ export async function POST(request: NextRequest) {
         fullName: profile.full_name,
         institution: profile.institution || "",
         currentRole: profile.current_position || "",
-        disciplines: Array.isArray(profile.disciplines) ? profile.disciplines : [],
+        disciplines: jsonArray<string>(profile.disciplines),
         specialisation: profile.specialisation || "",
         purpose: profile.purpose || "",
         background: profile.background || "",
-        links: Array.isArray(profile.links) ? profile.links : []
+        links: jsonArray<string>(profile.links)
       },
       professor: {
         fullName: String(claimed.full_name),
         institution: String(claimed.institution),
         researchSummary: String(claimed.research_summary),
         whyMatch: String(claimed.why_match),
-        works: Array.isArray(claimed.works) ? claimed.works as Array<{ title: string; date: string; url: string; citedBy: number }> : []
+        works: jsonArray<{ title: string; date: string; url: string; citedBy: number }>(claimed.works)
       },
       documents: textDocuments(documentRows as unknown as Array<{ original_name: string; extracted_text: string }>)
     });

@@ -1,17 +1,5 @@
 import { db } from "@/lib/db";
-
-function arrayValue(value: unknown) {
-  if (Array.isArray(value)) return value;
-  if (typeof value === "string") {
-    try {
-      const parsed = JSON.parse(value);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  }
-  return [];
-}
+import { jsonArray } from "@/lib/core";
 
 export async function dashboardFor(userId: string) {
   const sql = db();
@@ -46,11 +34,11 @@ export async function dashboardFor(userId: string) {
       fullName: profile.full_name || "",
       institution: profile.institution || "",
       currentRole: profile.current_position || "",
-      disciplines: arrayValue(profile.disciplines),
+      disciplines: jsonArray(profile.disciplines),
       specialisation: profile.specialisation || "",
       purpose: profile.purpose || "",
       background: profile.background || "",
-      links: arrayValue(profile.links),
+      links: jsonArray(profile.links),
       liveSending: Boolean(profile.live_sending),
       onboardingComplete: Boolean(profile.onboarding_complete)
     },
@@ -75,8 +63,8 @@ export async function dashboardFor(userId: string) {
       id: row.draft_id,
       subject: row.subject,
       body: row.body,
-      attachmentDocumentIds: arrayValue(row.attachment_document_ids),
-      validationNotes: arrayValue(row.validation_notes),
+      attachmentDocumentIds: jsonArray(row.attachment_document_ids),
+      validationNotes: jsonArray(row.validation_notes),
       createdAt: row.draft_created_at,
       prospect: {
         id: row.prospect_id,
@@ -88,8 +76,8 @@ export async function dashboardFor(userId: string) {
         emailSourceUrl: row.email_source_url,
         openAlexAuthorUrl: row.openalex_author_url,
         officialProfileUrl: row.official_profile_url,
-        sourceUrls: arrayValue(row.source_urls),
-        works: arrayValue(row.works),
+        sourceUrls: jsonArray(row.source_urls),
+        works: jsonArray(row.works),
         researchSummary: row.research_summary,
         whyMatch: row.why_match,
         collectedAt: row.collected_at

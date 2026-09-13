@@ -27,6 +27,17 @@ export function shortText(value: string, max: number) {
   return value.replace(/\s+/g, " ").trim().slice(0, max);
 }
 
+export function jsonArray<T = unknown>(value: unknown): T[] {
+  if (Array.isArray(value)) return value as T[];
+  if (typeof value !== "string") return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed as T[] : [];
+  } catch {
+    return [];
+  }
+}
+
 export function hashForLog(value: string) {
   return createHash("sha256").update(value).digest("hex").slice(0, 16);
 }

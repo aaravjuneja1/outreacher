@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireSession } from "@/lib/auth";
-import { AppError, assertSameOrigin, errorResponse, isHttpsUrl, noStore } from "@/lib/core";
+import { AppError, assertSameOrigin, errorResponse, isHttpsUrl, jsonArray, noStore } from "@/lib/core";
 import { db } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -28,7 +28,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     const draft = rows[0];
     if (!draft) throw new AppError("That draft is no longer available.", 404);
 
-    const attachmentIds = input.attachmentDocumentIds || (Array.isArray(draft.attachment_document_ids) ? draft.attachment_document_ids : []);
+    const attachmentIds = input.attachmentDocumentIds || jsonArray<string>(draft.attachment_document_ids);
     if (input.attachmentDocumentIds) {
       for (const documentId of attachmentIds) {
         const owned = await sql.unsafe("SELECT id FROM documents WHERE id = $1 AND user_id = $2", [documentId, session.userId]);
