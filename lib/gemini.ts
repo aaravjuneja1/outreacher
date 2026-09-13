@@ -61,6 +61,12 @@ async function generate(prompt: string) {
     if (response.status === 429) {
       throw new AppError("Drafting is busy right now. Please try again shortly. Your credit has not changed.", 503);
     }
+    if (response.status === 400 || response.status === 401 || response.status === 403) {
+      throw new AppError("The drafting service key is not accepted. Update the Gemini API key and try again. Your credit has not changed.", 503);
+    }
+    if (response.status === 404) {
+      throw new AppError("The configured drafting model is unavailable. Your credit has not changed.", 503);
+    }
     throw new AppError("Drafting is temporarily unavailable. Your credit has not changed.", 503);
   }
 

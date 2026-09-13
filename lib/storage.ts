@@ -68,6 +68,12 @@ export async function createPrivateUploadUrl(path: string) {
   });
   if (!response.ok) {
     await logStorageFailure("signed upload URL", response);
+    if (response.status === 404) {
+      throw new AppError("The private storage bucket is missing. Create the configured bucket in Supabase Storage.", 503);
+    }
+    if (response.status === 401 || response.status === 403) {
+      throw new AppError("Supabase rejected the private storage key. Update the server storage key and try again.", 503);
+    }
     throw new AppError("Your private upload link could not be created. Please try again.", 503);
   }
   const data = await response.json() as { url?: string };

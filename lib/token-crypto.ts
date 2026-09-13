@@ -1,16 +1,16 @@
-import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { AppError } from "@/lib/core";
 import { requiredEnv } from "@/lib/env";
 
 function tokenKey() {
   const supplied = requiredEnv("TOKEN_ENCRYPTION_KEY");
   const base64 = Buffer.from(supplied, "base64");
-  const hex = Buffer.from(supplied, "hex");
-  const key = base64.length === 32 ? base64 : hex.length === 32 ? hex : undefined;
-  if (!key) {
-    throw new AppError("The token encryption key must be a 32-byte base64 or hex value.", 503);
-  }
-  return key;
+  if (base64.length === 32) return base64;
+  if (/^[a-f\d]{64}$/i.test(supplied)) return Buffer.from(supplied, "hex");
+
+  // Older deployments accepted an arbitrary secret in their setup notes. Derive
+  // a stable 32-byte AES key so those deployments can connect Gmail safely.
+  return createHash("sha256").update(supplied, "utf8").digest();
 }
 
 export function encryptToken(plainText: string) {
