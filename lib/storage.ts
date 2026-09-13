@@ -35,6 +35,45 @@ async function logStorageFailure(operation: string, response: Response) {
     // Status and operation are enough when the provider does not return JSON.
   }
   console.error("Supabase Storage " + operation + " failed", response.status, providerMessage.slice(0, 240));
+  return providerMessage;
+}
+
+async function ensurePrivateBucket() {
+  const config = storageConfig();
+  const bucketUrl = config.url + "/storage/v1/bucket/" + encodeURIComponent(config.bucket);
+  const response = await fetch(bucketUrl, { headers: headers() });
+  if (response.ok) return;
+  const message = await logStorageFailure("bucket check", response);
+  const missing = response.status === 404 || (response.status === 400 && /not found|does not exist/i.test(message));
+  if (!missing) {
+    if (response.status === 400 || response.status === 401 || response.status === 403) {
+      throw new AppError("Supabase rejected the private storage key. Update the server storage key and try again.", 503);
+    }
+    throw new AppError("Private file storage is temporarily unavailable. Please try again.", 503);
+  }
+
+  const created = await fetch(config.url + "/storage/v1/bucket", {
+    method: "POST",
+    headers: headers("application/json"),
+    body: JSON.stringify({
+      id: config.bucket,
+      name: config.bucket,
+      public: false,
+      file_size_limit: MAX_PRIVATE_FILE_BYTES,
+      allowed_mime_types: [
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "text/plain"
+      ]
+    })
+  });
+  if (!created.ok && created.status !== 409) {
+    await logStorageFailure("bucket creation", created);
+    if (created.status === 400 || created.status === 401 || created.status === 403) {
+      throw new AppError("Supabase rejected the private storage key. Update the server storage key and try again.", 503);
+    }
+    throw new AppError("The private storage bucket could not be created. Please try again.", 503);
+  }
 }
 
 export async function uploadPrivateFile(userId: string, documentId: string, originalName: string, bytes: Buffer, mimeType: string) {
@@ -59,6 +98,7 @@ export function privateStoragePath(userId: string, documentId: string, originalN
 }
 
 export async function createPrivateUploadUrl(path: string) {
+  await ensurePrivateBucket();
   const config = storageConfig();
   const endpoint = config.url + "/storage/v1/object/upload/sign/" + encodeURIComponent(config.bucket) + "/" + path.split("/").map(encodeURIComponent).join("/");
   const response = await fetch(endpoint, {
