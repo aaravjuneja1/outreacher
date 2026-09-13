@@ -50,6 +50,14 @@ async function generate(prompt: string) {
   });
 
   if (!response.ok) {
+    let providerStatus = "";
+    try {
+      const data = await response.clone().json() as { error?: { status?: string } };
+      providerStatus = data.error?.status || "";
+    } catch {
+      // HTTP status is sufficient when the provider response is not JSON.
+    }
+    console.error("Gemini generation failed", response.status, providerStatus);
     if (response.status === 429) {
       throw new AppError("Drafting is busy right now. Please try again shortly. Your credit has not changed.", 503);
     }

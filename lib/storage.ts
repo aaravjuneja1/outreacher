@@ -26,6 +26,17 @@ function headers(contentType?: string) {
   };
 }
 
+async function logStorageFailure(operation: string, response: Response) {
+  let providerMessage = "";
+  try {
+    const data = await response.clone().json() as { error?: string; message?: string };
+    providerMessage = data.message || data.error || "";
+  } catch {
+    // Status and operation are enough when the provider does not return JSON.
+  }
+  console.error("Supabase Storage " + operation + " failed", response.status, providerMessage.slice(0, 240));
+}
+
 export async function uploadPrivateFile(userId: string, documentId: string, originalName: string, bytes: Buffer, mimeType: string) {
   const path = safeName(userId) + "/" + safeName(documentId) + "-" + safeName(originalName);
   const response = await fetch(objectUrl(path), {
@@ -37,6 +48,7 @@ export async function uploadPrivateFile(userId: string, documentId: string, orig
     body: new Uint8Array(bytes)
   });
   if (!response.ok) {
+    await logStorageFailure("upload", response);
     throw new AppError("Your file could not be stored privately. Please try again.", 503);
   }
   return path;
@@ -55,6 +67,7 @@ export async function createPrivateUploadUrl(path: string) {
     body: "{}"
   });
   if (!response.ok) {
+    await logStorageFailure("signed upload URL", response);
     throw new AppError("Your private upload link could not be created. Please try again.", 503);
   }
   const data = await response.json() as { url?: string };
@@ -64,7 +77,10 @@ export async function createPrivateUploadUrl(path: string) {
 
 export async function downloadPrivateFile(path: string, maxBytes = MAX_PRIVATE_FILE_BYTES) {
   const response = await fetch(objectUrl(path), { headers: headers() });
-  if (!response.ok) throw new AppError("An attached file is no longer available.", 422);
+  if (!response.ok) {
+    await logStorageFailure("download", response);
+    throw new AppError("An attached file is no longer available.", 422);
+  }
   const declaredLength = Number(response.headers.get("content-length") || 0);
   if (declaredLength > maxBytes) throw new AppError("This file is larger than the allowed limit.", 422);
   const bytes = Buffer.from(await response.arrayBuffer());
@@ -75,6 +91,7 @@ export async function downloadPrivateFile(path: string, maxBytes = MAX_PRIVATE_F
 export async function removePrivateFile(path: string) {
   const response = await fetch(objectUrl(path), { method: "DELETE", headers: headers() });
   if (!response.ok && response.status !== 404) {
+    await logStorageFailure("delete", response);
     throw new AppError("The file could not be deleted right now. Please try again.", 503);
   }
 }

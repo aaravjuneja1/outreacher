@@ -30,7 +30,8 @@ export async function GET(request: NextRequest) {
     );
     await db().unsafe("INSERT INTO security_events (id, user_id, event_type) VALUES ($1, $2, 'gmail_connected')", [crypto.randomUUID(), userId]);
     return dashboardRedirect("connected");
-  } catch {
+  } catch (error) {
+    console.error("Gmail callback failed", error instanceof Error ? error.message : "Unknown error");
     return dashboardRedirect("not-connected");
   }
 }
